@@ -1,68 +1,71 @@
 import 'package:flutter/material.dart';
-import 'package:weather_assignment/bloc/weather_bloc.dart';
+import 'package:parse_server_sdk_flutter/parse_server_sdk_flutter.dart';
+import 'package:weather_assignment/api_data/keys.dart';
 import 'package:weather_assignment/screens/home_screen.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:weather_assignment/screens/login_screen.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final keyApplicationId = appIdKey;
+  final keyClientKey = clientIdKey;
+  final keyParseServerUrl = serverUrlKey;
+
+  await Parse().initialize(keyApplicationId, keyParseServerUrl,
+      clientKey: keyClientKey, debug: true);
+
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  Future<bool> hasUserLogged() async {
+    ParseUser? currentUser = await ParseUser.currentUser() as ParseUser?;
+    if (currentUser == null) {
+      return false;
+    }
+    //Checks whether the user's session token is valid
+    final ParseResponse? parseResponse =
+        await ParseUser.getCurrentUserFromServer(currentUser.sessionToken!);
+
+    if (parseResponse?.success == null || !parseResponse!.success) {
+      //Invalid session. Logout
+      await currentUser.logout();
+      return false;
+    } else {
+      return true;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: FutureBuilder<Position>(
-          future: _determinePosition(),
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+      ),
+      home: FutureBuilder<bool>(
+          future: hasUserLogged(),
           builder: (context, snapshot) {
-            if (snapshot.hasData) {
-              return BlocProvider<WeatherBloc>(
-                create: (context) =>
-                WeatherBloc()
-                  ..add(FetchWeather(snapshot.data as Position)),
-                child: const HomeScreen(),
-              );
-            } else {
-              return const Scaffold(
-                body: Center(
-                  child: CircularProgressIndicator(),
-                ),
-              );
+            switch (snapshot.connectionState) {
+              case ConnectionState.none:
+              case ConnectionState.waiting:
+                return const Scaffold(
+                  body: Center(
+                    child: SizedBox(
+                        width: 100,
+                        height: 100,
+                        child: CircularProgressIndicator()),
+                  ),
+                );
+              default:
+                if (snapshot.hasData && snapshot.data!) {
+                  return HomePage();
+                } else {
+                  return LoginPage();
+                }
             }
           }),
     );
   }
-}
-
-// Determine the current position of the device
-Future<Position> _determinePosition() async {
-  bool serviceEnabled;
-  LocationPermission permission;
-
-  // Test if location services are enabled.
-  serviceEnabled = await Geolocator.isLocationServiceEnabled();
-  if (!serviceEnabled) {
-    // Location services are not enabled don't continue
-    // accessing the position and request users of the
-    // App to enable the location services.
-    return Future.error('Location services are disabled.');
-  }
-
-  permission = await Geolocator.checkPermission();
-  if (permission == LocationPermission.denied) {
-    permission = await Geolocator.requestPermission();
-    if (permission == LocationPermission.denied) {
-      return Future.error('Location permissions are denied');
-    }
-  }
-
-  if (permission == LocationPermission.deniedForever) {
-    return Future.error(
-        'Location permissions are permanently denied, we cannot request permissions.');
-  }
-
-  return await Geolocator.getCurrentPosition();
 }

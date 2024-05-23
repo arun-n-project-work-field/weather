@@ -1,6 +1,6 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:weather_assignment/data/my_data.dart';
+import 'package:weather_assignment/api_data/keys.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:weather/weather.dart';
 
@@ -13,7 +13,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
     on<FetchWeather>((event, emit) async {
       emit(WeatherBlocLoading());
       try {
-        WeatherFactory wf = WeatherFactory(apiKey, language: Language.ENGLISH);
+        WeatherFactory wf = WeatherFactory(weatherApiKey, language: Language.ENGLISH);
         Weather weather = await wf.currentWeatherByLocation(
             event.position.latitude, event.position.longitude);
         print(weather);
